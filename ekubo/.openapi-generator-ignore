@@ -1,0 +1,9 @@
+*.yml
+*.sh
+Cargo.toml
+/src/lib.rs
+docs/
+.openapi-generator
+.openapi-generator-ignore
+README.md
+.gitignore

@@ -1,0 +1,124 @@
+openapi: "3.1.0"
+info:
+  title: Ekubo API Client
+  description: |
+    Сlient for Ekubo AMM DEX.
+  version: "0.1.0"
+  license:
+    name: MIT
+    url: 'http://opensource.org/licenses/MIT'
+externalDocs:
+  description: Find out more about Ekubo
+  url: 'https://docs.ekubo.org/'
+components:
+  schemas:
+    poolKey:
+      type: object
+      required:
+        - token0
+        - token1
+        - fee
+        - tick_spacing
+        - extension
+      properties:
+        token0:
+          type: string
+          description: Address of token0
+        token1:
+          type: string
+          description: Address of token1
+        fee:
+          type: string
+          description: Address of fee
+        tick_spacing:
+          type: integer
+        extension:
+          type: string
+          description: extension id
+    routePoint:
+      type: object
+      required:
+        - pool_key
+        - sqrt_ratio_limit
+        - skip_ahead
+      properties:
+        pool_key:
+          $ref: '#/components/schemas/poolKey'
+        sqrt_ratio_limit:
+          type: string
+        skip_ahead:
+          type: string
+    quoteResponse:
+      type: object
+      description: The suggested route(s) to get the best price
+      required:
+        - specifiedAmount
+        - amount
+        - route
+      properties:
+        specifiedAmount:
+          type: string
+        amount:
+          type: string
+        route:
+          type: array
+          items:
+            $ref: '#/components/schemas/routePoint'
+    errorResponse:
+      type: object
+      description: Error response
+      required:
+        - error
+        - status
+      properties:
+        error:
+          type: object
+          additionalProperties: true
+        status:
+          type: integer
+          example: 500
+      example:
+        status: 500
+        error: an error occured
+paths:
+  '/quote/{amount}/{token}/{otherToken}':
+    get:
+      summary: Returns a quote for a swap or series of swaps to/from one token amount from/to another token
+      parameters:
+        - in: path
+          name: amount
+          schema:
+            type: string
+          required: true
+          description: The amount of the specified token
+          example: "-1e9"
+        - in: path
+          name: token
+          schema:
+            type: string
+          required: true
+          description: A hexadecimal number
+          example: USDC
+        - in: path
+          name: otherToken
+          schema:
+            type: string
+          required: true
+          description: A hexadecimal number
+          example: ETH
+      responses:
+        '200':
+          description: items found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/quoteResponse'
+        default:
+          description: error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/errorResponse'
+servers:
+  - description: Sepolia Ekubo API
+    url: https://sepolia-api.ekubo.org

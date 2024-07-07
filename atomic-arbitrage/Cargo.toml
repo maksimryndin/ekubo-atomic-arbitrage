@@ -1,0 +1,12 @@
+[package]
+name = "ekubo-atomic-arbitrage"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+color-eyre.workspace = true
+dotenvy.workspace = true
+ekubo.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

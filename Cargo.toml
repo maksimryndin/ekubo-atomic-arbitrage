@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "ekubo",
+    "atomic-arbitrage",
+]
+
+[workspace.lints.rust]
+warnings = "deny"
+
+[workspace.lints.clippy]
+restriction = "deny"
+missing_docs_in_private_items = "allow"
+implicit_return = "allow"
+question_mark_used = "allow"
+blanket_clippy_restriction_lints = "allow"
+mod_module_files = "allow"
+pub_use = "allow"
+std_instead_of_alloc = "allow"
+exhaustive_structs = "allow"
+min_ident_chars = "allow"
+
+[workspace.dependencies]
+color-eyre = "0.6"
+dotenvy = "0.15"
+ekubo = { path = "ekubo" }
+serde = "^1.0"
+serde_derive = "^1.0"
+serde_with = "^2.0"
+serde_json = "^1.0"
+tokio = { version = "1", default-features = false, features = ["macros"]}
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt"] }
+url = "2.5"
+reqwest = {version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"]}
+reqwest-middleware = "0.3"

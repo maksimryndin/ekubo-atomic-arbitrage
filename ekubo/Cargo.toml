@@ -1,0 +1,20 @@
+[package]
+name = "ekubo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+color-eyre.workspace = true
+reqwest.workspace = true
+reqwest-middleware.workspace = true
+serde.workspace = true
+serde_derive.workspace = true
+serde_json.workspace = true
+serde_with.workspace = true
+url.workspace = true
+
+[build-dependencies]
+color-eyre.workspace = true
+
+[lints]
+workspace = true
