@@ -8,8 +8,8 @@ fn main() -> Result<()> {
     let package_version = env!("CARGO_PKG_VERSION");
     let package_name = env!("CARGO_PKG_NAME");
     let current_dir = env!("CARGO_MANIFEST_DIR");
-    println!("Current working directory: {current_dir}");
-    println!("Generating files from the api specification...");
+    eprintln!("Current working directory: {current_dir}");
+    eprintln!("Generating files from the api specification...");
     // https://github.com/OpenAPITools/openapi-generator/blob/master/docs/generators/rust.md
     Command::new("docker")
         .arg("run")
@@ -34,9 +34,11 @@ fn main() -> Result<()> {
         .arg("preferUnsignedInt=true")
         .arg("--additional-properties")
         .arg("supportMiddleware=true")
+        .arg("--additional-properties")
+        .arg("avoidBoxedModels=true")
         .status()?;
 
-    // sudo chown -R ${USER}:${USER} src/apis/ src/models/
+    // sudo chown -R ${USER}:${USER} ekubo/src/apis/ ekubo/src/models/
 
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=build.rs");

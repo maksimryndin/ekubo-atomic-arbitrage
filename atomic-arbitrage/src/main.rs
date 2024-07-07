@@ -17,10 +17,11 @@ async fn main() -> Result<()> {
     let client = Client::new(env::var("EKUBO_URL")?, "atomic-bot".to_string());
 
     let token = env::var("TOKEN_TO_ARBITRAGE")?;
-    info!("token {}", token);
 
-    let response = client.quote("36028797018963968", &token, &token).await?;
-    info!("{:?}", response);
+    let response = client
+        .quotes(36028797018963968, &token, &token, 2, 3)
+        .await?;
+    info!("{:#?}", response);
 
     Ok(())
 }

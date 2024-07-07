@@ -11,28 +11,15 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
-/// QuoteResponse : The suggested route(s) to get the best price
-#[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct QuoteResponse {
-    #[serde(rename = "specifiedAmount")]
-    pub specified_amount: String,
-    #[serde(rename = "amount")]
-    pub amount: String,
-    #[serde(rename = "route")]
-    pub route: Vec<models::RoutePoint>,
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum QuoteResponse {
+    Quote(models::Quote),
+    Quotes(models::Quotes),
 }
 
-impl QuoteResponse {
-    /// The suggested route(s) to get the best price
-    pub fn new(
-        specified_amount: String,
-        amount: String,
-        route: Vec<models::RoutePoint>,
-    ) -> QuoteResponse {
-        QuoteResponse {
-            specified_amount,
-            amount,
-            route,
-        }
+impl Default for QuoteResponse {
+    fn default() -> Self {
+        Self::Quote(Default::default())
     }
 }

@@ -26,6 +26,8 @@ pub async fn quote_amount_token_other_token_get(
     amount: &str,
     token: &str,
     other_token: &str,
+    max_splits: Option<u32>,
+    max_hops: Option<u32>,
 ) -> Result<models::QuoteResponse, Error<QuoteAmountTokenOtherTokenGetError>> {
     let local_var_configuration = configuration;
 
@@ -41,6 +43,14 @@ pub async fn quote_amount_token_other_token_get(
     let mut local_var_req_builder =
         local_var_client.request(reqwest::Method::GET, local_var_uri_str.as_str());
 
+    if let Some(ref local_var_str) = max_splits {
+        local_var_req_builder =
+            local_var_req_builder.query(&[("maxSplits", &local_var_str.to_string())]);
+    }
+    if let Some(ref local_var_str) = max_hops {
+        local_var_req_builder =
+            local_var_req_builder.query(&[("maxHops", &local_var_str.to_string())]);
+    }
     if let Some(ref local_var_user_agent) = local_var_configuration.user_agent {
         local_var_req_builder =
             local_var_req_builder.header(reqwest::header::USER_AGENT, local_var_user_agent.clone());

@@ -48,7 +48,7 @@ components:
           type: string
         skip_ahead:
           type: string
-    quoteResponse:
+    Quote:
       type: object
       description: The suggested route(s) to get the best price
       required:
@@ -64,6 +64,24 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/routePoint'
+    Quotes:
+      type: object
+      description: The suggested route(s) to get the best price
+      required:
+        - total
+        - splits
+      properties:
+        total:
+          type: string
+        splits:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quote'
+    quoteResponse:
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/Quote' 
+        - $ref: '#/components/schemas/Quotes'
     errorResponse:
       type: object
       description: Error response
@@ -106,6 +124,18 @@ paths:
           required: true
           description: A hexadecimal number
           example: ETH
+        - in: query
+          name: maxSplits
+          schema:
+            type: integer
+            minimum: 1
+          description: The maximum number of routes that the amount can be split across
+        - in: query
+          name: maxHops
+          schema:
+            type: integer
+            minimum: 1
+          description: The maximum number of pools that may be used in any route
       responses:
         '200':
           description: items found

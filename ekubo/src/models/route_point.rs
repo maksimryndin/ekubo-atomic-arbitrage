@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RoutePoint {
     #[serde(rename = "pool_key")]
-    pub pool_key: Box<models::PoolKey>,
+    pub pool_key: models::PoolKey,
     #[serde(rename = "sqrt_ratio_limit")]
     pub sqrt_ratio_limit: String,
     #[serde(rename = "skip_ahead")]
@@ -28,7 +28,7 @@ impl RoutePoint {
         skip_ahead: String,
     ) -> RoutePoint {
         RoutePoint {
-            pool_key: Box::new(pool_key),
+            pool_key,
             sqrt_ratio_limit,
             skip_ahead,
         }

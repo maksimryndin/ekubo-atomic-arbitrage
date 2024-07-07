@@ -50,16 +50,46 @@ impl Client {
     #[inline]
     pub async fn quote(
         &self,
-        amount: &str,
+        amount: u128,
         token: &str,
         other_token: &str,
-    ) -> Result<models::QuoteResponse> {
-        Ok(apis::default_api::quote_amount_token_other_token_get(
+    ) -> Result<models::Quote> {
+        match apis::default_api::quote_amount_token_other_token_get(
             &self.configuration,
-            amount,
+            &amount.to_string(),
             token,
             other_token,
+            None,
+            None,
         )
-        .await?)
+        .await?
+        {
+            models::QuoteResponse::Quote(q) => Ok(q),
+            _ => panic!("assert: quote returns a single Quote"),
+        }
+    }
+
+    #[inline]
+    pub async fn quotes(
+        &self,
+        amount: u128,
+        token: &str,
+        other_token: &str,
+        max_splits: u8,
+        max_hops: u8,
+    ) -> Result<models::Quotes> {
+        match apis::default_api::quote_amount_token_other_token_get(
+            &self.configuration,
+            &amount.to_string(),
+            token,
+            other_token,
+            Some(max_splits.into()),
+            Some(max_hops.into()),
+        )
+        .await?
+        {
+            models::QuoteResponse::Quotes(q) => Ok(q),
+            _ => panic!("assert: quote returns a few Quotes when params are provided"),
+        }
     }
 }
