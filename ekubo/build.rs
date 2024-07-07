@@ -8,8 +8,6 @@ fn main() -> Result<()> {
     let package_version = env!("CARGO_PKG_VERSION");
     let package_name = env!("CARGO_PKG_NAME");
     let current_dir = env!("CARGO_MANIFEST_DIR");
-    eprintln!("Current working directory: {current_dir}");
-    eprintln!("Generating files from the api specification...");
     // https://github.com/OpenAPITools/openapi-generator/blob/master/docs/generators/rust.md
     Command::new("docker")
         .arg("run")

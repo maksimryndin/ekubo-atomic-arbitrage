@@ -26,7 +26,7 @@ pub mod apis;
 #[allow(clippy::error_impl_error)]
 pub mod models;
 
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{bail, Result};
 
 pub struct Client {
     configuration: apis::configuration::Configuration,
@@ -65,7 +65,7 @@ impl Client {
         .await?
         {
             models::QuoteResponse::Quote(q) => Ok(q),
-            _ => panic!("assert: quote returns a single Quote"),
+            _ => bail!("quote should return a single Quote"),
         }
     }
 
@@ -89,7 +89,7 @@ impl Client {
         .await?
         {
             models::QuoteResponse::Quotes(q) => Ok(q),
-            _ => panic!("assert: quote returns a few Quotes when params are provided"),
+            _ => bail!("quote should return a few Quotes when params are provided"),
         }
     }
 }

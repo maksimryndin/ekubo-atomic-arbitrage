@@ -25,6 +25,7 @@ min_ident_chars = "allow"
 color-eyre = "0.6"
 dotenvy = "0.15"
 ekubo = { path = "ekubo" }
+futures = "0.3"
 serde = "^1.0"
 serde_derive = "^1.0"
 serde_with = "^2.0"
