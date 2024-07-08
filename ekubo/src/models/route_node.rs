@@ -12,22 +12,25 @@ use crate::models;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RoutePoint {
+pub struct RouteNode {
     #[serde(rename = "pool_key")]
     pub pool_key: models::PoolKey,
     #[serde(rename = "sqrt_ratio_limit")]
-    pub sqrt_ratio_limit: String,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]
+    pub sqrt_ratio_limit: starknet_core::types::Felt,
+    /// A suggested skip_ahead value for gas optimizing the trade
     #[serde(rename = "skip_ahead")]
-    pub skip_ahead: String,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]
+    pub skip_ahead: starknet_core::types::Felt,
 }
 
-impl RoutePoint {
+impl RouteNode {
     pub fn new(
         pool_key: models::PoolKey,
-        sqrt_ratio_limit: String,
-        skip_ahead: String,
-    ) -> RoutePoint {
-        RoutePoint {
+        sqrt_ratio_limit: starknet_core::types::Felt,
+        skip_ahead: starknet_core::types::Felt,
+    ) -> RouteNode {
+        RouteNode {
             pool_key,
             sqrt_ratio_limit,
             skip_ahead,

@@ -8,5 +8,5 @@ pub mod quote_response;
 pub use self::quote_response::QuoteResponse;
 pub mod quotes;
 pub use self::quotes::Quotes;
-pub mod route_point;
-pub use self::route_point::RoutePoint;
+pub mod route_node;
+pub use self::route_node::RouteNode;

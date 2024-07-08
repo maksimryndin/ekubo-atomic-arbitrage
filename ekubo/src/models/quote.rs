@@ -15,16 +15,24 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Quote {
     #[serde(rename = "specifiedAmount")]
-    pub specified_amount: String,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]
+    pub specified_amount: starknet_core::types::Felt,
+    /// The calculated amount for the quote
     #[serde(rename = "amount")]
-    pub amount: String,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]
+    pub amount: starknet_core::types::Felt,
+    /// The list of pool keys through which to swap
     #[serde(rename = "route")]
-    pub route: Vec<models::RoutePoint>,
+    pub route: Vec<models::RouteNode>,
 }
 
 impl Quote {
     /// The suggested route(s) to get the best price
-    pub fn new(specified_amount: String, amount: String, route: Vec<models::RoutePoint>) -> Quote {
+    pub fn new(
+        specified_amount: starknet_core::types::Felt,
+        amount: starknet_core::types::Felt,
+        route: Vec<models::RouteNode>,
+    ) -> Quote {
         Quote {
             specified_amount,
             amount,

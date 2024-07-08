@@ -15,14 +15,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Quotes {
     #[serde(rename = "total")]
-    pub total: String,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]
+    pub total: starknet_core::types::Felt,
     #[serde(rename = "splits")]
     pub splits: Vec<models::Quote>,
 }
 
 impl Quotes {
     /// The suggested route(s) to get the best price
-    pub fn new(total: String, splits: Vec<models::Quote>) -> Quotes {
+    pub fn new(total: starknet_core::types::Felt, splits: Vec<models::Quote>) -> Quotes {
         Quotes { total, splits }
     }
 }

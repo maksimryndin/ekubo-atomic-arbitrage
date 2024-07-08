@@ -11,31 +11,37 @@
 use crate::models;
 use serde::{Deserialize, Serialize};
 
+/// PoolKey : The composite key identifier for a pool in Ekubo
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PoolKey {
     /// Address of token0
     #[serde(rename = "token0")]
-    pub token0: String,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]
+    pub token0: starknet_core::types::Felt,
     /// Address of token1
     #[serde(rename = "token1")]
-    pub token1: String,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]
+    pub token1: starknet_core::types::Felt,
     /// Address of fee
     #[serde(rename = "fee")]
-    pub fee: String,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]
+    pub fee: starknet_core::types::Felt,
     #[serde(rename = "tick_spacing")]
     pub tick_spacing: i32,
     /// extension id
     #[serde(rename = "extension")]
-    pub extension: String,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]
+    pub extension: starknet_core::types::Felt,
 }
 
 impl PoolKey {
+    /// The composite key identifier for a pool in Ekubo
     pub fn new(
-        token0: String,
-        token1: String,
-        fee: String,
+        token0: starknet_core::types::Felt,
+        token1: starknet_core::types::Felt,
+        fee: starknet_core::types::Felt,
         tick_spacing: i32,
-        extension: String,
+        extension: starknet_core::types::Felt,
     ) -> PoolKey {
         PoolKey {
             token0,

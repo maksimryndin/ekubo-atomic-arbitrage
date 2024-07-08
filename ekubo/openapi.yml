@@ -14,6 +14,7 @@ components:
   schemas:
     poolKey:
       type: object
+      description: The composite key identifier for a pool in Ekubo
       required:
         - token0
         - token1
@@ -35,7 +36,7 @@ components:
         extension:
           type: string
           description: extension id
-    routePoint:
+    routeNode:
       type: object
       required:
         - pool_key
@@ -48,6 +49,7 @@ components:
           type: string
         skip_ahead:
           type: string
+          description: A suggested skip_ahead value for gas optimizing the trade
     Quote:
       type: object
       description: The suggested route(s) to get the best price
@@ -60,10 +62,12 @@ components:
           type: string
         amount:
           type: string
+          description: The calculated amount for the quote
         route:
           type: array
+          description: The list of pool keys through which to swap
           items:
-            $ref: '#/components/schemas/routePoint'
+            $ref: '#/components/schemas/routeNode'
     Quotes:
       type: object
       description: The suggested route(s) to get the best price

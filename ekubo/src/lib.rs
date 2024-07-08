@@ -26,7 +26,10 @@ pub mod apis;
 #[allow(clippy::error_impl_error)]
 pub mod models;
 
+mod helpers;
+
 use color_eyre::eyre::{bail, Result};
+use starknet_core::types::Felt;
 
 pub struct Client {
     configuration: apis::configuration::Configuration,
@@ -50,7 +53,7 @@ impl Client {
     #[inline]
     pub async fn quote(
         &self,
-        amount: u128,
+        amount: Felt,
         token: &str,
         other_token: &str,
     ) -> Result<models::Quote> {
@@ -72,7 +75,7 @@ impl Client {
     #[inline]
     pub async fn quotes(
         &self,
-        amount: u128,
+        amount: Felt,
         token: &str,
         other_token: &str,
         max_splits: u8,
