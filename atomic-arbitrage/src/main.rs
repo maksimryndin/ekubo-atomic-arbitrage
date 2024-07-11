@@ -1,12 +1,21 @@
-use color_eyre::eyre::Result;
+use color_eyre::eyre::{bail, ensure, eyre, Result};
 use ekubo::{
     models::{PoolKey, Quote, Quotes, RouteNode},
     Client,
 };
 use futures::future::join_all;
 use starknet::{
-    accounts::Call,
-    core::{types::Felt, utils::get_selector_from_name},
+    accounts::{Account, Call, ExecutionEncoding, SingleOwnerAccount},
+    core::{
+        chain_id,
+        types::{BlockId, BlockTag, Felt, FunctionCall, U256},
+        utils::get_selector_from_name,
+    },
+    providers::{
+        jsonrpc::{HttpTransport, JsonRpcClient},
+        Provider, Url,
+    },
+    signers::{LocalWallet, SigningKey},
 };
 use std::cmp::Reverse;
 use std::env;
@@ -46,6 +55,7 @@ async fn check_arbitrage(
     })
 }
 
+// RouteNode in the ABI
 fn node_to_array(node: RouteNode) -> [Felt; 8] {
     let RouteNode {
         pool_key:
@@ -59,33 +69,87 @@ fn node_to_array(node: RouteNode) -> [Felt; 8] {
         sqrt_ratio_limit,
         skip_ahead,
     } = node;
+    let sqrt_ratio = U256::from(sqrt_ratio_limit);
+    let low = Felt::from(sqrt_ratio.low());
+    let high = Felt::from(sqrt_ratio.high());
     [
         token0,
         token1,
         fee,
         tick_spacing.into(),
         extension,
-        Felt::from(sqrt_ratio_limit.to_bigint() % Felt::from(2u8).pow(128u8).to_bigint()),
-        Felt::from(sqrt_ratio_limit.to_bigint() >> 128),
+        // Note on `sqrt_ratio_limit` is U256 in signatures
+        // It means that Starknet expects two Felts (low and high)
+        // https://docs.starknet.io/architecture-and-concepts/smart-contracts/serialization-of-cairo-types/
+        // It is ok to operate with it as a Felt as it seems that it is 192 bits - see https://github.com/EkuboProtocol/abis/blob/main/src/types/pool_price.cairo
+        low,
+        high,
         skip_ahead,
     ]
 }
 
+// multihop_swap in the ABI
+// Does a multihop swap, where the output/input of each hop is passed as input/output of the next swap
+// see also https://github.com/EkuboProtocol/abis/blob/main/src/router_lite.cairo
 fn call_data_for_split(split: Quote, token_address: Felt) -> impl Iterator<Item = Felt> {
     let specified_amount = split.specified_amount;
     iter::once(Felt::from(split.route.len()))
         .chain(split.route.into_iter().flat_map(node_to_array))
         .chain(iter::once(token_address))
         .chain(iter::once(specified_amount))
-        .chain(iter::once(Felt::ZERO))
+        .chain(iter::once(Felt::ZERO)) // we specify an exact input amount, so it is positive
 }
 
+// multi_multihop_swap in the ABI
+// Does multiple multihop swaps
+// see also https://github.com/EkuboProtocol/abis/blob/main/src/router_lite.cairo
 fn call_data_for_multisplit(splits: Vec<Quote>, token_address: Felt) -> impl Iterator<Item = Felt> {
     iter::once(Felt::from(splits.len())).chain(
         splits
             .into_iter()
             .flat_map(move |split| call_data_for_split(split, token_address)),
     )
+}
+
+fn get_chain_id(ekubo_url: &str, provider_url: &str) -> Result<Felt> {
+    if ekubo_url.contains("sepolia") {
+        ensure!(
+            provider_url.contains("sepolia"),
+            "Ekubo API and RPC provider urls should point to the same chain: Sepolia"
+        );
+        Ok(chain_id::SEPOLIA)
+    } else if ekubo_url.contains("mainnet") {
+        ensure!(
+            provider_url.contains("mainnet"),
+            "Ekubo API and RPC provider urls should point to the same chain: Mainnet"
+        );
+        Ok(chain_id::MAINNET)
+    } else {
+        bail!("unsupported chain - verify environment variables")
+    }
+}
+
+async fn get_account_balance(
+    token_contract: Felt,
+    account_address: Felt,
+    provider: &JsonRpcClient<HttpTransport>,
+) -> Result<U256> {
+    let felts = provider
+        .call(
+            FunctionCall {
+                contract_address: token_contract,
+                entry_point_selector: get_selector_from_name("balanceOf")?,
+                calldata: vec![account_address],
+            },
+            BlockId::Tag(BlockTag::Latest),
+        )
+        .await
+        .map_err(|e| eyre!("Error when fetching account balance:\n{e:#?}"))?;
+    let low = u128::from_le_bytes(felts[0].to_bytes_le()[0..16].try_into()?);
+    let high = u128::from_le_bytes(felts[1].to_bytes_le()[0..16].try_into()?);
+    // the unit of data in Cairo is Felt (u252) but ERC20 standard suggests to return u256 from balanceOf
+    // So the token contract returns a pair of low (128 bits) and high (128 bits) to construct a u256
+    Ok(U256::from_words(low, high))
 }
 
 #[allow(unreachable_code)]
@@ -97,31 +161,55 @@ async fn main() -> Result<()> {
         .with(fmt::layer())
         .with(EnvFilter::from_default_env())
         .init();
-
-    let client = Client::new(env::var("EKUBO_URL")?, "atomic-bot".to_string());
-
     let token_address_hex = env::var("TOKEN_TO_ARBITRAGE")?;
     let token_address = Felt::from_hex(&token_address_hex)?;
     let router_address_hex = env::var("ROUTER_ADDRESS")?;
     let router_address = Felt::from_hex(&router_address_hex)?;
+    let url = env::var("EKUBO_URL")?;
+    let provider_url = env::var("JSON_RPC_URL")?;
+    let explorer_url = env::var("EXPLORER_TX_PREFIX")?;
+    info!("starting bot with Ekubo API {url} and RPC {provider_url}");
+    let chain_id = get_chain_id(&url, &provider_url)?;
+
+    let client = Client::new(url, "atomic-bot".to_string());
+    let rpc_transport = HttpTransport::new(Url::parse(&provider_url)?);
+    let provider = JsonRpcClient::new(rpc_transport);
+    ensure!(chain_id == provider.chain_id().await?);
+
+    let signer = LocalWallet::from(SigningKey::from_secret_scalar(Felt::from_hex(&env::var(
+        "ACCOUNT_PRIVATE_KEY",
+    )?)?));
+    let account_address = Felt::from_hex(&env::var("ACCOUNT_ADDRESS")?)?;
+
+    let account_balance = get_account_balance(token_address, account_address, &provider).await?;
+    info!("Account balance: {account_balance} WEI");
+
+    let account = SingleOwnerAccount::new(
+        provider,
+        signer,
+        account_address,
+        chain_id,
+        ExecutionEncoding::New, // https://docs.rs/starknet/0.11.0/starknet/accounts/enum.ExecutionEncoding.html#variant.New,
+    );
+
     let transfer_selector = get_selector_from_name("transfer")?;
     let clear_minimum_selector = get_selector_from_name("clear_minimum")?;
     let multihop_swap_selector = get_selector_from_name("multihop_swap")?;
+    let multi_multihop_swap_selector = get_selector_from_name("multi_multihop_swap")?;
 
     let min_power: u8 = 32.max(env::var("MIN_POWER_OF_2")?.parse()?);
     let max_power: u8 = (min_power + 1).max(65.min(env::var("MAX_POWER_OF_2")?.parse()?));
-    dbg!(min_power, max_power);
 
     let amounts_to_quote: Vec<Felt> = (min_power..max_power)
         .map(|p| Felt::from(2u8).pow(p))
         .collect();
-    dbg!(&amounts_to_quote);
 
     let max_splits: u8 = env::var("MAX_SPLITS")?.parse()?;
     let max_hops: u8 = env::var("MAX_HOPS")?.parse()?;
     let min_profit = Felt::from_dec_str(&env::var("MIN_PROFIT")?)?;
     let num_top_quotes: usize = env::var("NUM_TOP_QUOTES_TO_ESTIMATE")?.parse()?;
     let check_interval: u64 = env::var("CHECK_INTERVAL_MS")?.parse()?;
+
     loop {
         let mut opportunities: Vec<ArbitrageOpportunity> =
             join_all(amounts_to_quote.iter().map(|&amount| {
@@ -139,49 +227,75 @@ async fn main() -> Result<()> {
             .flatten()
             .collect();
         opportunities.sort_unstable_by_key(|opportunity| Reverse(opportunity.profit));
-        let calls: Option<[Call; 3]> =
-            opportunities
-                .into_iter()
-                .take(num_top_quotes)
-                .find_map(|opportunity| {
-                    let transfer_call = Call {
-                        to: token_address,
-                        selector: transfer_selector,
-                        calldata: vec![router_address, opportunity.amount, Felt::ZERO],
-                    };
+        let calls: Option<(Felt, [Call; 3])> = opportunities
+            .into_iter()
+            .take(num_top_quotes)
+            .find_map(|opportunity| {
+                // transfer takes the second argument (amount) as U256
+                // pay the input
+                let transfer_call = Call {
+                    to: token_address,
+                    selector: transfer_selector,
+                    calldata: vec![router_address, opportunity.amount, Felt::ZERO],
+                };
 
-                    let clear_profits_call = Call {
+                // clear_minimum takes the second argument (amount) as U256
+                // withdraw the output
+                let clear_profits_call = Call {
+                    to: router_address,
+                    selector: clear_minimum_selector,
+                    calldata: vec![token_address, opportunity.amount, Felt::ZERO],
+                };
+                let profit = opportunity.profit;
+                let mut splits = opportunity.quotes.splits;
+
+                let call = if splits.len() == 1 {
+                    let split = splits.pop()?;
+                    if split.route.len() == 1 {
+                        error!("unexpected single hop route");
+                        return None;
+                    }
+                    Call {
                         to: router_address,
-                        selector: clear_minimum_selector,
-                        calldata: vec![token_address, opportunity.amount, Felt::ZERO],
-                    };
+                        selector: multihop_swap_selector,
+                        calldata: call_data_for_split(split, token_address).collect(),
+                    }
+                } else {
+                    Call {
+                        to: router_address,
+                        selector: multi_multihop_swap_selector,
+                        calldata: call_data_for_multisplit(splits, token_address).collect(),
+                    }
+                };
 
-                    let mut splits = opportunity.quotes.splits;
-
-                    let call = if splits.len() == 1 {
-                        let split = splits.pop()?;
-                        if split.route.len() == 1 {
-                            error!("unexpected single hop route");
-                            return None;
-                        }
-                        Call {
-                            to: router_address,
-                            selector: multihop_swap_selector,
-                            calldata: call_data_for_split(split, token_address).collect(),
-                        }
-                    } else {
-                        Call {
-                            to: router_address,
-                            selector: multihop_swap_selector,
-                            calldata: call_data_for_multisplit(splits, token_address).collect(),
-                        }
-                    };
-
-                    Some([transfer_call, call, clear_profits_call])
-                });
+                Some((profit, [transfer_call, call, clear_profits_call]))
+            });
         match calls {
-            Some(calls) => {
-                info!("Executing top arbitrage:\n{calls:#?}")
+            Some((profit, calls)) => {
+                info!("Executing top arbitrage:\n{calls:#?}");
+                let cost = account.execute_v1(calls.to_vec()).estimate_fee().await?;
+                // gas fees in WEI as we use tx v1,
+                // see https://docs.rs/starknet/0.11.0/starknet/core/types/struct.FeeEstimate.html
+                let total_gas_cost_wei = cost.overall_fee;
+                info!("cost etimation:\n{total_gas_cost_wei:#?}");
+                // Get a tx receipt, actual fee, link to the explorer with tx
+                let limit_fee = total_gas_cost_wei * Felt::TWO;
+                info!("cost etimation:\n{total_gas_cost_wei}");
+                info!("profit etimation:\n{profit}, limit fee:\n{limit_fee}");
+                if profit > limit_fee {
+                    let tx = account
+                        .execute_v1(calls.to_vec())
+                        .max_fee(limit_fee)
+                        .send()
+                        .await
+                        .map_err(|e| eyre!("Error while sending arbitrage transaction:\n{e:#?}"))?;
+                    info!(
+                        "sent transaction, waiting for receipt:\n{explorer_url}{}",
+                        tx.transaction_hash
+                    );
+                } else {
+                    info!("Non-profitable opportunity");
+                }
             }
             None => info!("No arbitrage found"),
         }

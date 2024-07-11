@@ -1,4 +1,6 @@
 /target
 /docs
 .env
+.env.mainnet
+.env.sepolia
 ekubo/.openapi-generator

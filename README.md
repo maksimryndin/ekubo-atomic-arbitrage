@@ -6,4 +6,3 @@ Prerequisites
 
 Run
 `cargo run`
-
