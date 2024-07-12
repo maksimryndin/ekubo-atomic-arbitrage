@@ -227,7 +227,7 @@ async fn main() -> Result<()> {
             .flatten()
             .collect();
         opportunities.sort_unstable_by_key(|opportunity| Reverse(opportunity.profit));
-        let calls: Option<(Felt, [Call; 3])> = opportunities
+        let top: Option<(Felt, [Call; 3])> = opportunities
             .into_iter()
             .take(num_top_quotes)
             .find_map(|opportunity| {
@@ -270,34 +270,31 @@ async fn main() -> Result<()> {
 
                 Some((profit, [transfer_call, call, clear_profits_call]))
             });
-        match calls {
-            Some((profit, calls)) => {
-                info!("Executing top arbitrage:\n{calls:#?}");
-                let cost = account.execute_v1(calls.to_vec()).estimate_fee().await?;
-                // gas fees in WEI as we use tx v1,
-                // see https://docs.rs/starknet/0.11.0/starknet/core/types/struct.FeeEstimate.html
-                let total_gas_cost_wei = cost.overall_fee;
-                info!("cost etimation:\n{total_gas_cost_wei:#?}");
-                // Get a tx receipt, actual fee, link to the explorer with tx
-                let limit_fee = total_gas_cost_wei * Felt::TWO;
-                info!("cost etimation:\n{total_gas_cost_wei}");
-                info!("profit etimation:\n{profit}, limit fee:\n{limit_fee}");
-                if profit > limit_fee {
-                    let tx = account
-                        .execute_v1(calls.to_vec())
-                        .max_fee(limit_fee)
-                        .send()
-                        .await
-                        .map_err(|e| eyre!("Error while sending arbitrage transaction:\n{e:#?}"))?;
-                    info!(
-                        "sent transaction, waiting for receipt:\n{explorer_url}{}",
-                        tx.transaction_hash
-                    );
-                } else {
-                    info!("Non-profitable opportunity");
-                }
+        if let Some((profit, calls)) = top {
+            info!("Executing top arbitrage:\n{calls:#?}");
+            let cost = account.execute_v1(calls.to_vec()).estimate_fee().await?;
+            // gas fees in WEI as we use tx v1,
+            // see https://docs.rs/starknet/0.11.0/starknet/core/types/struct.FeeEstimate.html
+            let total_gas_cost_wei = cost.overall_fee;
+            info!("cost etimation:\n{total_gas_cost_wei:#?}");
+            // Get a tx receipt, actual fee, link to the explorer with tx
+            let limit_fee = total_gas_cost_wei * Felt::TWO;
+            info!("cost etimation:\n{total_gas_cost_wei}");
+            info!("profit etimation:\n{profit}, limit fee:\n{limit_fee}");
+            if profit > limit_fee {
+                let tx = account
+                    .execute_v1(calls.to_vec())
+                    .max_fee(limit_fee)
+                    .send()
+                    .await
+                    .map_err(|e| eyre!("Error while sending arbitrage transaction:\n{e:#?}"))?;
+                info!(
+                    "sent transaction, waiting for receipt:\n{explorer_url}{:#x}",
+                    tx.transaction_hash
+                );
+            } else {
+                info!("Non-profitable opportunity");
             }
-            None => info!("No arbitrage found"),
         }
         sleep(Duration::from_millis(check_interval)).await;
     }
