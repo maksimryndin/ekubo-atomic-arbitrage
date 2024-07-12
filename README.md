@@ -4,7 +4,7 @@
 * [How to create an atomic arbitrage bot in Starknet: part 1 (basics)](https://medium.com/@maksim.ryndin/how-to-create-an-atomic-arbitrage-bot-in-starknet-part-1-basics-418333ed9cd3)
 
 ## Prerequisites
-* docker to generate an openapi client stub
+* A Starknet account (see the article)
 * Rust
 
 ## Run
@@ -12,6 +12,10 @@
 1. `cp .env.sepolia.example .env`
 2. provide account details - a private key and an account address
 3. `cargo run`
+
+## Development
+
+If `EKUBO_API_REBUILD` env variable is set to any value, then the openapi Ekubo stubs are built. For that Docker is required.
 
 ## Troubleshooting
 
