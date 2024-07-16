@@ -1,5 +1,7 @@
 # Atomic arbitrage bot for Ekubo
 
+This is a Rust port of https://github.com/EkuboProtocol/atomic-arbitrage-bot with more comments and some little improvements.
+
 ## Articles:
 * [How to create an atomic arbitrage bot in Starknet: part 1 (basics)](https://medium.com/@maksim.ryndin/how-to-create-an-atomic-arbitrage-bot-in-starknet-part-1-basics-418333ed9cd3)
 * [How to create an atomic arbitrage bot in Starknet: part 2 (the foggy desert)](https://medium.com/@maksim.ryndin/how-to-create-an-atomic-arbitrage-bot-in-starknet-part-2-the-foggy-desert-d3f28fad69c7)
