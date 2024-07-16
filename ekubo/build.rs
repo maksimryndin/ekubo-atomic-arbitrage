@@ -63,7 +63,7 @@ fn main() -> Result<()> {
             "src/models/quote.rs",
             r#"#[serde(rename = "amount")]"#,
             r#"#[serde(rename = "amount")]
-        #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
         )?;
 
         replace(
@@ -75,7 +75,7 @@ fn main() -> Result<()> {
             "src/models/quotes.rs",
             r#"#[serde(rename = "total")]"#,
             r#"#[serde(rename = "total")]
-        #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
         )?;
 
         replace(
@@ -92,13 +92,13 @@ fn main() -> Result<()> {
             "src/models/route_node.rs",
             r#"#[serde(rename = "sqrt_ratio_limit")]"#,
             r#"#[serde(rename = "sqrt_ratio_limit")]
-        #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
         )?;
         replace(
             "src/models/route_node.rs",
             r#"#[serde(rename = "skip_ahead")]"#,
             r#"#[serde(rename = "skip_ahead")]
-        #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
         )?;
 
         replace(
@@ -110,7 +110,7 @@ fn main() -> Result<()> {
             "src/models/pool_key.rs",
             r#"#[serde(rename = "token0")]"#,
             r#"#[serde(rename = "token0")]
-        #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
         )?;
         replace(
             "src/models/pool_key.rs",
@@ -121,7 +121,7 @@ fn main() -> Result<()> {
             "src/models/pool_key.rs",
             r#"#[serde(rename = "token1")]"#,
             r#"#[serde(rename = "token1")]
-        #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
         )?;
         replace(
             "src/models/pool_key.rs",
@@ -132,7 +132,7 @@ fn main() -> Result<()> {
             "src/models/pool_key.rs",
             r#"#[serde(rename = "fee")]"#,
             r#"#[serde(rename = "fee")]
-        #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
         )?;
         replace(
             "src/models/pool_key.rs",
@@ -143,7 +143,7 @@ fn main() -> Result<()> {
             "src/models/pool_key.rs",
             r#"#[serde(rename = "extension")]"#,
             r#"#[serde(rename = "extension")]
-        #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
+    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
         )?;
 
         println!("cargo:rerun-if-changed=Cargo.toml");

@@ -5,7 +5,7 @@ use ekubo::{
 };
 use futures::future::join_all;
 use starknet::{
-    accounts::{Account, Call, ExecutionEncoding, SingleOwnerAccount},
+    accounts::{Account, Call, ConnectedAccount, ExecutionEncoding, SingleOwnerAccount},
     core::{
         chain_id,
         types::{BlockId, BlockTag, Felt, FunctionCall, U256},
@@ -18,6 +18,7 @@ use starknet::{
     signers::{LocalWallet, SigningKey},
 };
 use std::cmp::Reverse;
+use std::collections::HashSet;
 use std::env;
 use std::iter;
 use tokio::time::{sleep, Duration};
@@ -48,10 +49,24 @@ async fn check_arbitrage(
         .ok()?;
     debug!("quotes for amount {amount}:\n{quotes:#?}");
     let total = quotes.total;
-    (total > amount + min_profit && !quotes.splits.is_empty()).then(|| ArbitrageOpportunity {
-        amount,
-        quotes,
-        profit: total - amount,
+    let extensions: HashSet<Felt> = quotes
+        .splits
+        .iter()
+        .map(|quote| quote.route.iter())
+        .flatten()
+        .filter_map(|node| {
+            let ext = node.pool_key.extension;
+            (ext != Felt::ZERO).then_some(ext)
+        })
+        .collect();
+    // We only check arbitrage opporunities in pools without extensions to prevent any front-running or other activities
+    // It is possible to extend to pools with some white-listed extensions
+    (extensions.is_empty() && total > amount + min_profit && !quotes.splits.is_empty()).then(|| {
+        ArbitrageOpportunity {
+            amount,
+            quotes,
+            profit: total - amount,
+        }
     })
 }
 
@@ -181,9 +196,6 @@ async fn main() -> Result<()> {
     )?)?));
     let account_address = Felt::from_hex(&env::var("ACCOUNT_ADDRESS")?)?;
 
-    let account_balance = get_account_balance(token_address, account_address, &provider).await?;
-    info!("Account balance: {account_balance} WEI");
-
     let account = SingleOwnerAccount::new(
         provider,
         signer,
@@ -211,23 +223,31 @@ async fn main() -> Result<()> {
     let check_interval: u64 = env::var("CHECK_INTERVAL_MS")?.parse()?;
 
     loop {
-        let mut opportunities: Vec<ArbitrageOpportunity> =
-            join_all(amounts_to_quote.iter().map(|&amount| {
-                check_arbitrage(
-                    &client,
-                    amount,
-                    min_profit,
-                    &token_address_hex,
-                    max_splits,
-                    max_hops,
-                )
-            }))
-            .await
-            .into_iter()
-            .flatten()
-            .collect();
+        let account_balance =
+            get_account_balance(token_address, account_address, account.provider()).await?;
+        info!("Account balance: {account_balance} WEI");
+
+        let mut opportunities: Vec<ArbitrageOpportunity> = join_all(
+            amounts_to_quote
+                .iter()
+                .filter(|&&amount| U256::from(amount) <= account_balance)
+                .map(|&amount| {
+                    check_arbitrage(
+                        &client,
+                        amount,
+                        min_profit,
+                        &token_address_hex,
+                        max_splits,
+                        max_hops,
+                    )
+                }),
+        )
+        .await
+        .into_iter()
+        .flatten()
+        .collect();
         opportunities.sort_unstable_by_key(|opportunity| Reverse(opportunity.profit));
-        let top: Option<(Felt, [Call; 3])> = opportunities
+        let top: Option<(Felt, Felt, [Call; 3])> = opportunities
             .into_iter()
             .take(num_top_quotes)
             .find_map(|opportunity| {
@@ -247,6 +267,7 @@ async fn main() -> Result<()> {
                     calldata: vec![token_address, opportunity.amount, Felt::ZERO],
                 };
                 let profit = opportunity.profit;
+                let amount = opportunity.amount;
                 let mut splits = opportunity.quotes.splits;
 
                 let call = if splits.len() == 1 {
@@ -268,9 +289,10 @@ async fn main() -> Result<()> {
                     }
                 };
 
-                Some((profit, [transfer_call, call, clear_profits_call]))
+                Some((profit, amount, [transfer_call, call, clear_profits_call]))
             });
-        if let Some((profit, calls)) = top {
+        if let Some((profit, amount, calls)) = top {
+            info!("top arbitrage profit: {profit}, amount {amount}");
             info!("Executing top arbitrage:\n{calls:#?}");
             let cost = account.execute_v1(calls.to_vec()).estimate_fee().await?;
             // gas fees in WEI as we use tx v1,
@@ -281,6 +303,7 @@ async fn main() -> Result<()> {
             let limit_fee = total_gas_cost_wei * Felt::TWO;
             info!("cost etimation:\n{total_gas_cost_wei}");
             info!("profit etimation:\n{profit}, limit fee:\n{limit_fee}");
+            // We can make this comparison as both the swapped token and limit fee are nominated in ETH
             if profit > limit_fee {
                 let tx = account
                     .execute_v1(calls.to_vec())
@@ -289,7 +312,7 @@ async fn main() -> Result<()> {
                     .await
                     .map_err(|e| eyre!("Error while sending arbitrage transaction:\n{e:#?}"))?;
                 info!(
-                    "sent transaction, waiting for receipt:\n{explorer_url}{:#x}",
+                    "sent transaction:\n{explorer_url}{:#x}",
                     tx.transaction_hash
                 );
             } else {

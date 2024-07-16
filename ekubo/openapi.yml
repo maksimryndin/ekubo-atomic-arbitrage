@@ -24,18 +24,18 @@ components:
       properties:
         token0:
           type: string
-          description: Address of token0
+          description: Address of token0 ERC20 contract
         token1:
           type: string
-          description: Address of token1
+          description: Address of token1 ERC20 contract
         fee:
           type: string
-          description: Address of fee
+          description: Size of fee, hex of Q0.128 (see https://docs.ekubo.org/integration-guides/reference/reading-pool-price)
         tick_spacing:
           type: integer
         extension:
           type: string
-          description: extension id
+          description: extension id (see more https://docs.ekubo.org/integration-guides/extensions)
     routeNode:
       type: object
       required:
@@ -47,9 +47,10 @@ components:
           $ref: '#/components/schemas/poolKey'
         sqrt_ratio_limit:
           type: string
+          description: a limit on how far the price can move as part of the swap. Note this must always be specified, and must be between the maximum and minimum sqrt ratio. See also https://docs.ekubo.org/integration-guides/reference/reading-pool-price
         skip_ahead:
           type: string
-          description: A suggested skip_ahead value for gas optimizing the trade
+          description: A suggested skip_ahead value for gas optimizing the trade. It is an optimization parameter for large swaps across many uninitialized ticks to reduce the number of swap iterations that must be performed.
     Quote:
       type: object
       description: The suggested route(s) to get the best price
@@ -60,6 +61,7 @@ components:
       properties:
         specifiedAmount:
           type: string
+          description: An input amount
         amount:
           type: string
           description: The calculated amount for the quote
@@ -77,6 +79,7 @@ components:
       properties:
         total:
           type: string
+          description: The result of all swaps (either an output amount if an exact input or an input if an exact output is specified). Sums up all amounts in every Quote.
         splits:
           type: array
           items:
@@ -112,22 +115,20 @@ paths:
           schema:
             type: string
           required: true
-          description: The amount of the specified token
+          description: The amount of the specified token. Positive amount means an exact input amount. Negative amount means an exact output amount.
           example: "-1e9"
         - in: path
           name: token
           schema:
             type: string
           required: true
-          description: A hexadecimal number
-          example: USDC
+          description: Address of token0 ERC20 contract
         - in: path
           name: otherToken
           schema:
             type: string
           required: true
-          description: A hexadecimal number
-          example: ETH
+          description: Address of token1 ERC20 contract
         - in: query
           name: maxSplits
           schema:
