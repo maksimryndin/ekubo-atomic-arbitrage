@@ -8,7 +8,10 @@ use starknet::{
     accounts::{Account, Call, ConnectedAccount, ExecutionEncoding, SingleOwnerAccount},
     core::{
         chain_id,
-        types::{BlockId, BlockTag, Felt, FunctionCall, U256},
+        types::{
+            BlockId, BlockTag, Felt, FunctionCall, TransactionReceiptWithBlockInfo,
+            TransactionStatus, U256,
+        },
         utils::get_selector_from_name,
     },
     providers::{
@@ -167,6 +170,38 @@ async fn get_account_balance(
     Ok(U256::from_words(low, high))
 }
 
+// Wait for the transaction to be accepted
+async fn wait_for_transaction(
+    provider: &JsonRpcClient<HttpTransport>,
+    tx_hash: Felt,
+) -> Result<TransactionReceiptWithBlockInfo> {
+    let mut retries = 200;
+    let retry_interval = Duration::from_millis(5000);
+
+    while retries >= 0 {
+        tokio::time::sleep(retry_interval).await;
+        let status = provider
+            .get_transaction_status(tx_hash)
+            .await
+            .map_err(|e| eyre!("failed to get tx status: {e:#?}"))?;
+        retries -= 1;
+        match status {
+            TransactionStatus::Received => continue,
+            TransactionStatus::Rejected => bail!("transaction is rejected"),
+            TransactionStatus::AcceptedOnL2(_) | TransactionStatus::AcceptedOnL1(_) => {
+                match provider.get_transaction_receipt(tx_hash).await {
+                    Ok(receipt) => return Ok(receipt),
+                    // For some nodes even though the transaction has execution status SUCCEEDED finality status ACCEPTED_ON_L2,
+                    // get_transaction_receipt returns "Transaction hash not found"
+                    // see https://github.com/starknet-io/starknet.js/blob/v6.7.0/src/channel/rpc_0_7.ts#L248
+                    Err(_) => continue,
+                }
+            }
+        }
+    }
+    bail!("maximum retries attempts")
+}
+
 #[allow(unreachable_code)]
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
@@ -196,13 +231,15 @@ async fn main() -> Result<()> {
     )?)?));
     let account_address = Felt::from_hex(&env::var("ACCOUNT_ADDRESS")?)?;
 
-    let account = SingleOwnerAccount::new(
+    let mut account = SingleOwnerAccount::new(
         provider,
         signer,
         account_address,
         chain_id,
         ExecutionEncoding::New, // https://docs.rs/starknet/0.11.0/starknet/accounts/enum.ExecutionEncoding.html#variant.New,
     );
+    // otherwise we will get a DuplicateTx error as nonce by default set to the latest block
+    account.set_block_id(BlockId::Tag(BlockTag::Pending));
 
     let transfer_selector = get_selector_from_name("transfer")?;
     let clear_minimum_selector = get_selector_from_name("clear_minimum")?;
@@ -315,6 +352,10 @@ async fn main() -> Result<()> {
                     "sent transaction:\n{explorer_url}{:#x}",
                     tx.transaction_hash
                 );
+                match wait_for_transaction(account.provider(), tx.transaction_hash).await {
+                    Ok(receipt) => info!("Transaction receipt: {receipt:#?}"),
+                    Err(e) => error!("Arbitrage transaction failed: {e:#?}"),
+                }
             } else {
                 info!("Non-profitable opportunity");
             }
