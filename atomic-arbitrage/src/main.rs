@@ -176,10 +176,10 @@ async fn wait_for_transaction(
     tx_hash: Felt,
 ) -> Result<TransactionReceiptWithBlockInfo> {
     let mut retries = 200;
-    let retry_interval = Duration::from_millis(5000);
+    let retry_interval = Duration::from_millis(3000);
 
     while retries >= 0 {
-        tokio::time::sleep(retry_interval).await;
+        tokio::time::sleep(retry_interval).await; // sleep before the tx status to give some time for a tx get to the provider node
         let status = provider
             .get_transaction_status(tx_hash)
             .await
