@@ -41,6 +41,7 @@ async fn check_arbitrage(
     token_address: &str,
     max_splits: u8,
     max_hops: u8,
+    official_extensions: &HashSet<Felt>,
 ) -> Option<ArbitrageOpportunity> {
     let quotes = client
         .quotes(amount, token_address, token_address, max_splits, max_hops)
@@ -62,14 +63,14 @@ async fn check_arbitrage(
             (ext != Felt::ZERO).then_some(ext)
         })
         .collect();
-    // We only check arbitrage opporunities in pools without extensions to prevent any front-running or other activities
-    // It is possible to extend to pools with some white-listed extensions
-    (extensions.is_empty() && total > amount + min_profit && !quotes.splits.is_empty()).then(|| {
-        ArbitrageOpportunity {
-            amount,
-            quotes,
-            profit: total - amount,
-        }
+
+    (extensions.is_subset(official_extensions)
+        && total > amount + min_profit
+        && !quotes.splits.is_empty())
+    .then(|| ArbitrageOpportunity {
+        amount,
+        quotes,
+        profit: total - amount,
     })
 }
 
@@ -258,6 +259,12 @@ async fn main() -> Result<()> {
     let min_profit = Felt::from_dec_str(&env::var("MIN_PROFIT")?)?;
     let num_top_quotes: usize = env::var("NUM_TOP_QUOTES_TO_ESTIMATE")?.parse()?;
     let check_interval: u64 = env::var("CHECK_INTERVAL_MS")?.parse()?;
+    // We only check arbitrage opporunities in pools without extensions or with an official extensions only
+    // to prevent any front-running or other activities
+    // an official extension https://docs.ekubo.org/integration-guides/reference/contract-addresses
+    let twamm_extension =
+        Felt::from_hex("0x043e4f09c32d13d43a880e85f69f7de93ceda62d6cf2581a582c6db635548fdc")?;
+    let official_extensions = HashSet::from([twamm_extension]);
 
     loop {
         let account_balance =
@@ -276,6 +283,7 @@ async fn main() -> Result<()> {
                         &token_address_hex,
                         max_splits,
                         max_hops,
+                        &official_extensions,
                     )
                 }),
         )
