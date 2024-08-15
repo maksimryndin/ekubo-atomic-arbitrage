@@ -1,7 +1,5 @@
 # Atomic arbitrage bot for Ekubo
 
-This is a Rust port of https://github.com/EkuboProtocol/atomic-arbitrage-bot with more comments and some little improvements.
-
 ## Articles:
 * [How to create an atomic arbitrage bot in Starknet: part 1 (basics)](https://medium.com/@maksim.ryndin/how-to-create-an-atomic-arbitrage-bot-in-starknet-part-1-basics-418333ed9cd3)
 * [How to create an atomic arbitrage bot in Starknet: part 2 (the foggy desert)](https://medium.com/@maksim.ryndin/how-to-create-an-atomic-arbitrage-bot-in-starknet-part-2-the-foggy-desert-d3f28fad69c7)
@@ -16,6 +14,10 @@ This is a Rust port of https://github.com/EkuboProtocol/atomic-arbitrage-bot wit
 1. `cp .env.sepolia.example .env`
 2. provide account details - a private key and an account address
 3. `cargo run -- simple`
+
+Modes (arbitrage strategies):
+* `simple` - this is a Rust port of https://github.com/EkuboProtocol/atomic-arbitrage-bot with more comments and some little improvements
+* `ekubo-flash` - with Ekubo flash loan, see also https://github.com/maksimryndin/ekubo_flash_loan
 
 ## Development
 
