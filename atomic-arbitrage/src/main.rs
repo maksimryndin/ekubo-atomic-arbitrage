@@ -1,3 +1,4 @@
+use clap::{Parser, ValueEnum};
 use color_eyre::eyre::{bail, ensure, eyre, Result};
 use ekubo::{
     models::{PoolKey, Quote, Quotes, RouteNode},
@@ -32,6 +33,61 @@ struct ArbitrageOpportunity {
     amount: Felt,
     quotes: Quotes,
     profit: Felt,
+}
+
+impl ArbitrageOpportunity {
+    fn into_strategy(
+        self,
+        arbitrage_address: Felt,
+        token_address: Felt,
+        mode: Mode,
+    ) -> Option<(Felt, Felt, Vec<Call>)> {
+        let amount = self.amount;
+        let profit = self.profit;
+        let mut splits = self.quotes.splits;
+        let call = if splits.len() == 1 {
+            let split = splits.pop()?;
+            if split.route.len() == 1 {
+                error!("unexpected single hop route");
+                return None;
+            }
+            Call {
+                to: arbitrage_address,
+                selector: get_selector_from_name("multihop_swap").unwrap(),
+                calldata: call_data_for_split(split, token_address).collect(),
+            }
+        } else {
+            Call {
+                to: arbitrage_address,
+                selector: get_selector_from_name("multi_multihop_swap").unwrap(),
+                calldata: call_data_for_multisplit(splits, token_address).collect(),
+            }
+        };
+        let calls = match mode {
+            Mode::Simple => {
+                // transfer takes the second argument (amount) as U256
+                // pay the input
+                let transfer_call = Call {
+                    to: token_address,
+                    selector: get_selector_from_name("transfer").unwrap(),
+                    calldata: vec![arbitrage_address, amount, Felt::ZERO],
+                };
+
+                // clear_minimum takes the second argument (amount) as U256
+                // withdraw the output
+                let clear_profits_call = Call {
+                    to: arbitrage_address,
+                    selector: get_selector_from_name("clear_minimum").unwrap(),
+                    calldata: vec![token_address, amount, Felt::ZERO],
+                };
+                vec![transfer_call, call, clear_profits_call]
+            }
+            Mode::EkuboFlash => {
+                vec![call]
+            }
+        };
+        Some((profit, amount, calls))
+    }
 }
 
 async fn check_arbitrage(
@@ -203,9 +259,27 @@ async fn wait_for_transaction(
     bail!("maximum retries attempts")
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+enum Mode {
+    /// simple atomic arbitrage
+    Simple,
+    /// atomic arbitrage with Ekubo flash loan
+    EkuboFlash,
+}
+
+/// Ekubo arbitrage bot
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// Bot mode
+    #[arg(value_enum)]
+    mode: Mode,
+}
+
 #[allow(unreachable_code)]
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
+    let args = Cli::parse();
     dotenvy::dotenv()?;
     color_eyre::install()?;
     tracing_subscriber::registry()
@@ -214,12 +288,18 @@ async fn main() -> Result<()> {
         .init();
     let token_address_hex = env::var("TOKEN_TO_ARBITRAGE")?;
     let token_address = Felt::from_hex(&token_address_hex)?;
-    let router_address_hex = env::var("ROUTER_ADDRESS")?;
-    let router_address = Felt::from_hex(&router_address_hex)?;
+    let arbitrage_address_hex = match args.mode {
+        Mode::Simple => env::var("ROUTER_ADDRESS")?,
+        Mode::EkuboFlash => env::var("ARBITRAGE_CONTRACT")?,
+    };
+    let arbitrage_address = Felt::from_hex(&arbitrage_address_hex)?;
     let url = env::var("EKUBO_URL")?;
     let provider_url = env::var("JSON_RPC_URL")?;
     let explorer_url = env::var("EXPLORER_TX_PREFIX")?;
-    info!("starting bot with Ekubo API {url} and RPC {provider_url}");
+    info!(
+        "starting bot with Ekubo API {url} and RPC {provider_url}, strategy: {:?}",
+        args.mode
+    );
     let chain_id = get_chain_id(&url, &provider_url)?;
 
     let client = Client::new(url, "atomic-bot".to_string());
@@ -241,11 +321,6 @@ async fn main() -> Result<()> {
     );
     // otherwise we will get a DuplicateTx error as nonce by default set to the latest block
     account.set_block_id(BlockId::Tag(BlockTag::Pending));
-
-    let transfer_selector = get_selector_from_name("transfer")?;
-    let clear_minimum_selector = get_selector_from_name("clear_minimum")?;
-    let multihop_swap_selector = get_selector_from_name("multihop_swap")?;
-    let multi_multihop_swap_selector = get_selector_from_name("multi_multihop_swap")?;
 
     let min_power: u8 = 32.max(env::var("MIN_POWER_OF_2")?.parse()?);
     let max_power: u8 = (min_power + 1).max(65.min(env::var("MAX_POWER_OF_2")?.parse()?));
@@ -274,7 +349,9 @@ async fn main() -> Result<()> {
         let mut opportunities: Vec<ArbitrageOpportunity> = join_all(
             amounts_to_quote
                 .iter()
-                .filter(|&&amount| U256::from(amount) <= account_balance)
+                .filter(|&&amount| {
+                    args.mode != Mode::Simple || U256::from(amount) <= account_balance
+                })
                 .map(|&amount| {
                     check_arbitrage(
                         &client,
@@ -292,49 +369,11 @@ async fn main() -> Result<()> {
         .flatten()
         .collect();
         opportunities.sort_unstable_by_key(|opportunity| Reverse(opportunity.profit));
-        let top: Option<(Felt, Felt, [Call; 3])> = opportunities
+        let top: Option<(Felt, Felt, Vec<Call>)> = opportunities
             .into_iter()
             .take(num_top_quotes)
             .find_map(|opportunity| {
-                // transfer takes the second argument (amount) as U256
-                // pay the input
-                let transfer_call = Call {
-                    to: token_address,
-                    selector: transfer_selector,
-                    calldata: vec![router_address, opportunity.amount, Felt::ZERO],
-                };
-
-                // clear_minimum takes the second argument (amount) as U256
-                // withdraw the output
-                let clear_profits_call = Call {
-                    to: router_address,
-                    selector: clear_minimum_selector,
-                    calldata: vec![token_address, opportunity.amount, Felt::ZERO],
-                };
-                let profit = opportunity.profit;
-                let amount = opportunity.amount;
-                let mut splits = opportunity.quotes.splits;
-
-                let call = if splits.len() == 1 {
-                    let split = splits.pop()?;
-                    if split.route.len() == 1 {
-                        error!("unexpected single hop route");
-                        return None;
-                    }
-                    Call {
-                        to: router_address,
-                        selector: multihop_swap_selector,
-                        calldata: call_data_for_split(split, token_address).collect(),
-                    }
-                } else {
-                    Call {
-                        to: router_address,
-                        selector: multi_multihop_swap_selector,
-                        calldata: call_data_for_multisplit(splits, token_address).collect(),
-                    }
-                };
-
-                Some((profit, amount, [transfer_call, call, clear_profits_call]))
+                opportunity.into_strategy(arbitrage_address, token_address, args.mode)
             });
         if let Some((profit, amount, calls)) = top {
             info!("top arbitrage profit: {profit}, amount {amount}");

@@ -22,6 +22,7 @@ exhaustive_structs = "allow"
 min_ident_chars = "allow"
 
 [workspace.dependencies]
+clap = { version = "4.5.15", features = ["derive"] }
 color-eyre = "0.6"
 dotenvy = "0.15"
 ekubo = { path = "ekubo" }
