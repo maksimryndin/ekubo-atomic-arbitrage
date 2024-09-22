@@ -21,12 +21,11 @@ pub struct RouteNode {
     pub sqrt_ratio_limit: starknet_core::types::Felt,
     /// A suggested skip_ahead value for gas optimizing the trade. It is an optimization parameter for large swaps across many uninitialized ticks to reduce the number of swap iterations that must be performed.
     #[serde(rename = "skip_ahead")]
-    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]
-    pub skip_ahead: starknet_core::types::Felt,
+    pub skip_ahead: i32,
 }
 
 impl RouteNode {
-    pub fn new(pool_key: models::PoolKey, sqrt_ratio_limit: starknet_core::types::Felt, skip_ahead: starknet_core::types::Felt) -> RouteNode {
+    pub fn new(pool_key: models::PoolKey, sqrt_ratio_limit: starknet_core::types::Felt, skip_ahead: i32) -> RouteNode {
         RouteNode {
             pool_key,
             sqrt_ratio_limit,

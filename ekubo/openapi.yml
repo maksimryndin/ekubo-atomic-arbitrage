@@ -49,7 +49,7 @@ components:
           type: string
           description: a limit on how far the price can move as part of the swap. Note this must always be specified, and must be between the maximum and minimum sqrt ratio. See also https://docs.ekubo.org/integration-guides/reference/reading-pool-price
         skip_ahead:
-          type: string
+          type: integer
           description: A suggested skip_ahead value for gas optimizing the trade. It is an optimization parameter for large swaps across many uninitialized ticks to reduce the number of swap iterations that must be performed.
     Quote:
       type: object
