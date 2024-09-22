@@ -103,7 +103,7 @@ fn node_to_array(node: RouteNode) -> [Felt; 8] {
         // It is ok to operate with it as a Felt as it seems that it is 192 bits - see https://github.com/EkuboProtocol/abis/blob/main/src/types/pool_price.cairo
         low,
         high,
-        skip_ahead,
+        Felt::from(skip_ahead),
     ]
 }
 

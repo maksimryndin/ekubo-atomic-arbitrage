@@ -85,22 +85,10 @@ fn main() -> Result<()> {
         )?;
         replace(
             "src/models/route_node.rs",
-            "skip_ahead: String",
-            "skip_ahead: starknet_core::types::Felt",
-        )?;
-        replace(
-            "src/models/route_node.rs",
             r#"#[serde(rename = "sqrt_ratio_limit")]"#,
             r#"#[serde(rename = "sqrt_ratio_limit")]
     #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
         )?;
-        replace(
-            "src/models/route_node.rs",
-            r#"#[serde(rename = "skip_ahead")]"#,
-            r#"#[serde(rename = "skip_ahead")]
-    #[serde(deserialize_with = "crate::helpers::deserialize_felt_from_string")]"#,
-        )?;
-
         replace(
             "src/models/pool_key.rs",
             "token0: String",
