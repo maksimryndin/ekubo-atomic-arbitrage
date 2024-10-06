@@ -1,3 +1,4 @@
+use clap::Parser;
 use color_eyre::eyre::{bail, ensure, eyre, Result};
 use ekubo::{
     models::{PoolKey, Quote, Quotes, RouteNode},
@@ -24,6 +25,7 @@ use std::cmp::Reverse;
 use std::collections::HashSet;
 use std::env;
 use std::iter;
+use std::path::PathBuf;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
@@ -203,10 +205,24 @@ async fn wait_for_transaction(
     bail!("maximum retries attempts")
 }
 
+/// Ekubo arbitrage bot
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    /// Path to .env file
+    #[arg(short, long)]
+    path: Option<PathBuf>,
+}
+
 #[allow(unreachable_code)]
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    dotenvy::dotenv()?;
+    let args = Cli::parse();
+    if let Some(path) = args.path {
+        dotenvy::from_path(path)?;
+    } else {
+        dotenvy::dotenv()?;
+    }
     color_eyre::install()?;
     tracing_subscriber::registry()
         .with(fmt::layer())
