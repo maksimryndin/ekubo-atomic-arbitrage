@@ -25,6 +25,7 @@ use std::cmp::Reverse;
 use std::collections::HashSet;
 use std::env;
 use std::iter;
+use std::path::PathBuf;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
@@ -274,13 +275,20 @@ struct Cli {
     /// Bot mode
     #[arg(value_enum)]
     mode: Mode,
+    /// Path to .env file
+    #[arg(short, long)]
+    path: Option<PathBuf>,
 }
 
 #[allow(unreachable_code)]
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let args = Cli::parse();
-    dotenvy::dotenv()?;
+    if let Some(path) = args.path {
+        dotenvy::from_path(path)?;
+    } else {
+        dotenvy::dotenv()?;
+    }
     color_eyre::install()?;
     tracing_subscriber::registry()
         .with(fmt::layer())
